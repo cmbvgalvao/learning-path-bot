@@ -30,6 +30,9 @@ on:
           - evening
           - weekly
 
+permissions:
+  contents: read
+
 jobs:
   send:
     name: Send message
