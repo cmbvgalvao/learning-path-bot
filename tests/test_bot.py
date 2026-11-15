@@ -139,6 +139,22 @@ class VaultLogs(unittest.TestCase):
         self.assertIn("a &lt; b", text)
         self.assertNotIn("Study days", bot.build_weekly(today))
 
+    def test_weekly_message_fits_telegram(self):
+        today = date(2026, 11, 15)
+        long_note = "window functions, CTE recursion & index types. " * 20
+        logs = {date(2026, 11, d): log(str(d), revisit=long_note) for d in range(1, 16)}
+        text = bot.build_weekly(today, logs)
+        self.assertLessEqual(len(text), 4096)
+        self.assertIn("…", text)                      # each item shortened
+        self.assertIn("What's my focus", text)        # footer kept
+        self.assertIn("Sun:", text)                   # newest item kept
+
+    def test_weekly_message_drops_oldest_when_full(self):
+        lines = bot._revisit_lines([(date(2026, 11, d), "x" * 150) for d in range(9, 16)], room=500)
+        self.assertTrue(lines[-1].startswith("<i>+"))
+        self.assertIn("Sun:", lines[-2])
+        self.assertNotIn("Mon:", " ".join(lines))
+
     def test_no_token_means_no_vault(self):
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertIsNone(bot.fetch_logs(date(2026, 11, 1)))
