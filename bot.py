@@ -193,6 +193,29 @@ def _fmt_hours(h: float) -> str:
     return f"{h:.1f}".rstrip("0").rstrip(".") + " h"
 
 
+TELEGRAM_LIMIT = 4000   # Telegram's hard limit is 4096 characters; keep a margin
+REVISIT_ITEM_MAX = 200
+
+
+def _shorten(text: str, limit: int = REVISIT_ITEM_MAX) -> str:
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def _revisit_lines(items: list, room: int) -> list:
+    """Bullet lines for the revisit items that fit in `room` characters, newest kept first;
+    dropped (older) items are counted in a closing line."""
+    bullets = [f"• {d.strftime('%a')}: {html.escape(_shorten(r))}" for d, r in items]
+    kept, used = [], 0
+    for b in reversed(bullets):
+        if used + len(b) + 1 > room:
+            break
+        kept.insert(0, b)
+        used += len(b) + 1
+    if len(kept) < len(bullets):
+        kept.append(f"<i>+{len(bullets) - len(kept)} more in your logs</i>")
+    return kept
+
+
 def build_weekly(today: date, logs: dict = None) -> str:
     track = current_track(today)
     days_to_exam = (EXAM_WINDOW[0] - today).days
@@ -202,6 +225,13 @@ def build_weekly(today: date, logs: dict = None) -> str:
     ]
     if days_to_exam > 0:
         lines.append(f"🗓️ {days_to_exam} days to the SAA exam window")
+    footer = [
+        "",
+        "Take 30 minutes:",
+        "✅ What do I feel confident about?",
+        "⚠️ What still feels shaky?" + ("" if logs is not None else " (check the week's “What I need to revisit”)"),
+        "🎯 What's my focus for next week?",
+    ]
     if logs is not None:
         w = week_summary(logs, today)
         lines += ["", f"📅 Study days this week: <b>{w['days']}/7</b> · 🔥 streak: <b>{w['streak']}</b>"]
@@ -210,15 +240,9 @@ def build_weekly(today: date, logs: dict = None) -> str:
             lines.append(f"⏱️ {_fmt_hours(sum(w['hours'].values()))} ({per_track})")
         if w["revisit"]:
             lines += ["", "⚠️ <b>To revisit</b> (from your logs):"]
-            lines += [f"• {d.strftime('%a')}: {html.escape(r)}" for d, r in w["revisit"]]
-    lines += [
-        "",
-        "Take 30 minutes:",
-        "✅ What do I feel confident about?",
-        "⚠️ What still feels shaky?" + ("" if logs is not None else " (check the week's “What I need to revisit”)"),
-        "🎯 What's my focus for next week?",
-    ]
-    return "\n".join(lines)
+            room = TELEGRAM_LIMIT - len("\n".join(lines + footer)) - 60  # 60: the "+n more" line
+            lines += _revisit_lines(w["revisit"], room)
+    return "\n".join(lines + footer)
 
 
 BUILDERS = {"morning": build_morning, "evening": build_evening, "weekly": build_weekly}
