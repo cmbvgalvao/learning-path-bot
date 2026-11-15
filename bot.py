@@ -295,7 +295,8 @@ def main():
     if msg == "morning":
         text = build_morning(today)
     else:
-        logs = fetch_logs(today - timedelta(days=30))
+        # the evening nudge only needs to know whether today's log exists
+        logs = fetch_logs(today if msg == "evening" else today - timedelta(days=30))
         if msg == "evening" and logs is not None and today in logs:
             print(f"[SKIP] Today's log ({today}) is already written.")
             return
